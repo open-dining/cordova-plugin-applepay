@@ -1,170 +1,608 @@
 #import "CDVApplePay.h"
-#import <Stripe/Stripe.h>
-#import <Stripe/STPAPIClient.h>
-#import <Stripe/STPCardBrand.h>
-#import <PassKit/PassKit.h>
-#import <UIKit/UIKit.h>
-#import <objc/runtime.h>
-
+@import AddressBook;
 
 @implementation CDVApplePay
 
+@synthesize paymentCallbackId;
+
+
 - (void)pluginInitialize
 {
-    NSString * StripePublishableKey = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"StripePublishableKey"];
-    merchantId = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"ApplePayMerchant"];
-    [Stripe setDefaultPublishableKey:StripePublishableKey];
+
+    // Set these to the payment cards accepted.
+    // They will nearly always be the same.
+    supportedPaymentNetworks = @[PKPaymentNetworkVisa, PKPaymentNetworkMasterCard, PKPaymentNetworkAmex, PKPaymentNetworkDiscover];
+
+    // Set the capabilities that your merchant supports
+    // Adyen for example, only supports the 3DS one.
+    merchantCapabilities = PKMerchantCapability3DS;// PKMerchantCapabilityEMV;
+
+
 }
 
-- (void)dealloc
-{
-}
+- (NSMutableDictionary*)applyABRecordBillingAddress:(ABRecordRef)address forDictionary:(NSMutableDictionary*)response {
+    NSString *address1;
+    NSString *city;
+    NSString *postcode;
+    NSString *state;
+    NSString *country;
+    NSString *countryCode;
+    //NSString *emailAddress;
 
-- (void)onReset
-{
-}
 
-- (void)setMerchantId:(CDVInvokedUrlCommand*)command
-{
-    merchantId = [command.arguments objectAtIndex:0];
-    NSLog(@"ApplePay set merchant id to %@", merchantId);
-}
+    // TODO: Validate email
 
-- (void)getAllowsApplePay:(CDVInvokedUrlCommand*)command
-{
-    if (merchantId == nil) {
-        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"Please call setMerchantId() with your Apple-given merchant ID."];
-        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-        return;
+    //    if (shippingContact.emailAddress) {
+    //        [response setObject:shippingContact.emailAddress forKey:@"billingEmailAddress"];
+    //    }
+    //
+    //    if (shippingContact.supplementarySubLocality) {
+    //        [response setObject:shippingContact.supplementarySubLocality forKey:@"billingSupplementarySubLocality"];
+    //    }
+
+
+    //emailAddress = (__bridge NSString *)(CFDictionaryGetValue(address, kABPersonEmailProperty));
+
+
+    ABMultiValueRef addressRecord = ABRecordCopyValue(address, kABPersonAddressProperty);
+    if (ABMultiValueGetCount(addressRecord) > 0) {
+        CFDictionaryRef dict = ABMultiValueCopyValueAtIndex(addressRecord, 0);
+
+        address1 = (__bridge NSString *)(CFDictionaryGetValue(dict, kABPersonAddressStreetKey));
+        city = (__bridge NSString *)(CFDictionaryGetValue(dict, kABPersonAddressCityKey));
+        postcode = (__bridge NSString *)(CFDictionaryGetValue(dict, kABPersonAddressZIPKey));
+        state = (__bridge NSString *)(CFDictionaryGetValue(dict, kABPersonAddressStateKey));
+        country = (__bridge NSString *)(CFDictionaryGetValue(dict, kABPersonAddressCountryKey));
+        countryCode = (__bridge NSString *)(CFDictionaryGetValue(dict, kABPersonAddressCountryCodeKey));
+
+
+        if (address1) {
+            [response setObject:address1 forKey:@"billingAddressStreet"];
+        }
+
+        if (city) {
+            [response setObject:city forKey:@"billingAddressCity"];
+        }
+
+        if (postcode) {
+            [response setObject:postcode forKey:@"billingPostalCode"];
+        }
+
+        if (state) {
+            [response setObject:state forKey:@"billingAddressState"];
+        }
+
+        if (country) {
+            [response setObject:country forKey:@"billingCountry"];
+        }
+
+        if (countryCode) {
+            [response setObject:countryCode forKey:@"billingISOCountryCode"];
+        }
+
     }
 
-    PKPaymentRequest *request = [Stripe
-                                 paymentRequestWithMerchantIdentifier:merchantId];
+    // TODO: Valdidate address
 
-    // Configure a dummy request
-    NSString *label = @"Premium Llama Food";
-    NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithString:@"10.00"];
-    request.paymentSummaryItems = @[
-                                    [PKPaymentSummaryItem summaryItemWithLabel:label
-                                                                        amount:amount]
-                                    ];
+    //    BOOL valid = (address1 && ![address1 isEqualToString:@""] &&
+    //                  city && ![city isEqualToString:@""] &&
+    //                  postcode && ![postcode isEqualToString:@""] &&
+    //                  country && ![country isEqualToString:@""]);
+    //
+    //    if ([selectedCountry isEqualToString:@"United States"]) {
+    //        valid = (valid && state && ![state isEqualToString:@""]);
+    //    }
+    return response;
+}
 
-    if ([Stripe canSubmitPaymentRequest:request]) {
-        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString: @"user has apple pay"];
-        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+- (NSMutableDictionary*)applyABRecordShippingAddress:(ABRecordRef)address forDictionary:(NSMutableDictionary*)response {
+    NSString *address1;
+    NSString *city;
+    NSString *postcode;
+    NSString *state;
+    NSString *country;
+    NSString *countryCode;
+    //NSString *emailAddress;
+
+
+    // TODO: Validate email
+
+    //    if (shippingContact.emailAddress) {
+    //        [response setObject:shippingContact.emailAddress forKey:@"shippingEmailAddress"];
+    //    }
+    //
+    //    if (shippingContact.supplementarySubLocality) {
+    //        [response setObject:shippingContact.supplementarySubLocality forKey:@"shippingSupplementarySubLocality"];
+    //    }
+
+
+    //emailAddress = (__bridge NSString *)(CFDictionaryGetValue(address, kABPersonEmailProperty));
+
+
+    ABMultiValueRef addressRecord = ABRecordCopyValue(address, kABPersonAddressProperty);
+    if (ABMultiValueGetCount(addressRecord) > 0) {
+        CFDictionaryRef dict = ABMultiValueCopyValueAtIndex(addressRecord, 0);
+
+        address1 = (__bridge NSString *)(CFDictionaryGetValue(dict, kABPersonAddressStreetKey));
+        city = (__bridge NSString *)(CFDictionaryGetValue(dict, kABPersonAddressCityKey));
+        postcode = (__bridge NSString *)(CFDictionaryGetValue(dict, kABPersonAddressZIPKey));
+        state = (__bridge NSString *)(CFDictionaryGetValue(dict, kABPersonAddressStateKey));
+        country = (__bridge NSString *)(CFDictionaryGetValue(dict, kABPersonAddressCountryKey));
+        countryCode = (__bridge NSString *)(CFDictionaryGetValue(dict, kABPersonAddressCountryCodeKey));
+
+
+        if (address1) {
+            [response setObject:address1 forKey:@"shippingAddressStreet"];
+        }
+
+        if (city) {
+            [response setObject:city forKey:@"shippingAddressCity"];
+        }
+
+        if (postcode) {
+            [response setObject:postcode forKey:@"shippingPostalCode"];
+        }
+
+        if (state) {
+            [response setObject:state forKey:@"shippingAddressState"];
+        }
+
+        if (country) {
+            [response setObject:country forKey:@"shippingCountry"];
+        }
+
+        if (countryCode) {
+            [response setObject:countryCode forKey:@"shippingISOCountryCode"];
+        }
+
+    }
+
+    // TODO: Valdidate address
+
+    //    BOOL valid = (address1 && ![address1 isEqualToString:@""] &&
+    //                  city && ![city isEqualToString:@""] &&
+    //                  postcode && ![postcode isEqualToString:@""] &&
+    //                  country && ![country isEqualToString:@""]);
+    //
+    //    if ([selectedCountry isEqualToString:@"United States"]) {
+    //        valid = (valid && state && ![state isEqualToString:@""]);
+    //    }
+    return response;
+}
+
+
+- (void)canMakePayments:(CDVInvokedUrlCommand*)command
+{
+    if ([PKPaymentAuthorizationViewController canMakePayments]) {
+        if ((floor(NSFoundationVersionNumber) < NSFoundationVersionNumber_iOS_8_0)) {
+            CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"This device cannot make payments."];
+            [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+            return;
+        } else if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion){9, 0, 0}]) {
+            if ([PKPaymentAuthorizationViewController canMakePaymentsUsingNetworks:supportedPaymentNetworks capabilities:(merchantCapabilities)]) {
+                CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString: @"This device can make payments and has a supported card"];
+                [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+                return;
+            } else {
+                CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"This device can make payments but has no supported cards"];
+                [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+                return;
+            }
+        } else if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion){8, 0, 0}]) {
+            if ([PKPaymentAuthorizationViewController canMakePaymentsUsingNetworks:supportedPaymentNetworks]) {
+                CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString: @"This device can make payments and has a supported card"];
+                [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+                return;
+            } else {
+                CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"This device can make payments but has no supported cards"];
+                [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+                return;
+            }
+        } else {
+            CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"This device cannot make payments."];
+            [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+            return;
+        }
     } else {
-        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"user does not have apple pay"];
+        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"This device cannot make payments."];
         [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+        return;
     }
 }
 
-- (void)getStripeToken:(CDVInvokedUrlCommand*)command
+- (NSString *)countryCodeFromArguments:(NSArray *)arguments
 {
-    if (merchantId == nil) {
-        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"Please call setMerchantId() with your Apple-given merchant ID."];
+    NSString *countryCode = [[arguments objectAtIndex:0] objectForKey:@"countryCode"];
+    return countryCode;
+}
+
+- (NSString *)merchantIdentifierFromArguments:(NSArray *)arguments
+{
+    NSString *merchantIdentifier = [[arguments objectAtIndex:0] objectForKey:@"merchantIdentifier"];
+    return merchantIdentifier;
+}
+
+- (NSString *)currencyCodeFromArguments:(NSArray *)arguments
+{
+    NSString *currencyCode = [[arguments objectAtIndex:0] objectForKey:@"currencyCode"];
+    return currencyCode;
+}
+
+- (PKShippingType)shippingTypeFromArguments:(NSArray *)arguments
+{
+    NSString *shippingType = [[arguments objectAtIndex:0] objectForKey:@"shippingType"];
+
+    if ([shippingType isEqualToString:@"shipping"]) {
+        return PKShippingTypeShipping;
+    } else if ([shippingType isEqualToString:@"delivery"]) {
+        return PKShippingTypeDelivery;
+    } else if ([shippingType isEqualToString:@"store"]) {
+        return PKShippingTypeStorePickup;
+    } else if ([shippingType isEqualToString:@"service"]) {
+        return PKShippingTypeServicePickup;
+    }
+
+
+    return PKShippingTypeShipping;
+}
+
+- (PKAddressField)billingAddressRequirementFromArguments:(NSArray *)arguments
+{
+    NSString *billingAddressRequirement = [[arguments objectAtIndex:0] objectForKey:@"billingAddressRequirement"];
+
+    if ([billingAddressRequirement isEqualToString:@"none"]) {
+        return PKAddressFieldNone;
+    } else if ([billingAddressRequirement isEqualToString:@"all"]) {
+        return PKAddressFieldAll;
+    } else if ([billingAddressRequirement isEqualToString:@"postcode"]) {
+        return PKAddressFieldPostalAddress;
+    } else if ([billingAddressRequirement isEqualToString:@"name"]) {
+        return PKAddressFieldName;
+    } else if ([billingAddressRequirement isEqualToString:@"email"]) {
+        return PKAddressFieldEmail;
+    } else if ([billingAddressRequirement isEqualToString:@"phone"]) {
+        return PKAddressFieldPhone;
+    }
+
+
+    return PKAddressFieldNone;
+}
+
+- (PKAddressField)shippingAddressRequirementFromArguments:(NSArray *)arguments
+{
+    NSString *shippingAddressRequirement = [[arguments objectAtIndex:0] objectForKey:@"shippingAddressRequirement"];
+
+    if ([shippingAddressRequirement isEqualToString:@"none"]) {
+        return PKAddressFieldNone;
+    } else if ([shippingAddressRequirement isEqualToString:@"all"]) {
+        return PKAddressFieldAll;
+    } else if ([shippingAddressRequirement isEqualToString:@"postcode"]) {
+        return PKAddressFieldPostalAddress;
+    } else if ([shippingAddressRequirement isEqualToString:@"name"]) {
+        return PKAddressFieldName;
+    } else if ([shippingAddressRequirement isEqualToString:@"email"]) {
+        return PKAddressFieldEmail;
+    } else if ([shippingAddressRequirement isEqualToString:@"phone"]) {
+        return PKAddressFieldPhone;
+    }
+
+
+    return PKAddressFieldNone;
+}
+
+- (NSArray *)itemsFromArguments:(NSArray *)arguments
+{
+    NSArray *itemDescriptions = [[arguments objectAtIndex:0] objectForKey:@"items"];
+
+    NSMutableArray *items = [[NSMutableArray alloc] init];
+
+    for (NSDictionary *item in itemDescriptions) {
+
+        NSString *label = [item objectForKey:@"label"];
+
+        NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithDecimal:[[item objectForKey:@"amount"] decimalValue]];
+
+        PKPaymentSummaryItem *newItem = [PKPaymentSummaryItem summaryItemWithLabel:label amount:amount];
+
+        [items addObject:newItem];
+    }
+
+    return items;
+}
+
+- (NSArray *)shippingMethodsFromArguments:(NSArray *)arguments
+{
+    NSArray *shippingDescriptions = [[arguments objectAtIndex:0] objectForKey:@"shippingMethods"];
+
+    NSMutableArray *shippingMethods = [[NSMutableArray alloc] init];
+
+
+    for (NSDictionary *desc in shippingDescriptions) {
+
+        NSString *identifier = [desc objectForKey:@"identifier"];
+        NSString *detail = [desc objectForKey:@"detail"];
+        NSString *label = [desc objectForKey:@"label"];
+
+        NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithDecimal:[[desc objectForKey:@"amount"] decimalValue]];
+
+        PKPaymentSummaryItem *newMethod = [self shippingMethodWithIdentifier:identifier detail:detail label:label amount:amount];
+
+        [shippingMethods addObject:newMethod];
+    }
+
+    return shippingMethods;
+}
+
+- (PKPaymentAuthorizationStatus)paymentAuthorizationStatusFromArgument:(NSString *)paymentAuthorizationStatus
+{
+
+    if ([paymentAuthorizationStatus isEqualToString:@"success"]) {
+        return PKPaymentAuthorizationStatusSuccess;
+    } else if ([paymentAuthorizationStatus isEqualToString:@"failure"]) {
+        return PKPaymentAuthorizationStatusFailure;
+    } else if ([paymentAuthorizationStatus isEqualToString:@"invalid-billing-address"]) {
+        return PKPaymentAuthorizationStatusInvalidBillingPostalAddress;
+    } else if ([paymentAuthorizationStatus isEqualToString:@"invalid-shipping-address"]) {
+        return PKPaymentAuthorizationStatusInvalidShippingPostalAddress;
+    } else if ([paymentAuthorizationStatus isEqualToString:@"invalid-shipping-contact"]) {
+        return PKPaymentAuthorizationStatusInvalidShippingContact;
+    } else if ([paymentAuthorizationStatus isEqualToString:@"require-pin"]) {
+        return PKPaymentAuthorizationStatusPINRequired;
+    } else if ([paymentAuthorizationStatus isEqualToString:@"incorrect-pin"]) {
+        return PKPaymentAuthorizationStatusPINIncorrect;
+    } else if ([paymentAuthorizationStatus isEqualToString:@"locked-pin"]) {
+        return PKPaymentAuthorizationStatusPINLockout;
+    }
+
+    return PKPaymentAuthorizationStatusFailure;
+}
+
+- (void)completeLastTransaction:(CDVInvokedUrlCommand*)command
+{
+    if (self.paymentAuthorizationBlock) {
+
+        NSString *paymentAuthorizationStatusString = [command.arguments objectAtIndex:0];
+        NSLog(@"ApplePay completeLastTransaction == %@", paymentAuthorizationStatusString);
+
+        PKPaymentAuthorizationStatus paymentAuthorizationStatus = [self paymentAuthorizationStatusFromArgument:paymentAuthorizationStatusString];
+        self.paymentAuthorizationBlock(paymentAuthorizationStatus);
+
+        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString: @"Payment status applied."];
         [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+
+    }
+}
+
+- (void)makePaymentRequest:(CDVInvokedUrlCommand*)command
+{
+    self.paymentCallbackId = command.callbackId;
+
+    NSLog(@"ApplePay canMakePayments == %s", [PKPaymentAuthorizationViewController canMakePayments]? "true" : "false");
+    if ([PKPaymentAuthorizationViewController canMakePayments] == NO) {
+        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"This device cannot make payments."];
+        [self.commandDelegate sendPluginResult:result callbackId:self.paymentCallbackId];
         return;
     }
 
-    PKPaymentRequest *request = [Stripe
-                                 paymentRequestWithMerchantIdentifier:merchantId];
+    // reset any lingering callbacks, incase the previous payment failed.
+    self.paymentAuthorizationBlock = nil;
 
-    // Configure your request here.
-    NSString *label = [command.arguments objectAtIndex:1];
-    NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithString:[command.arguments objectAtIndex:0]];
-    request.paymentSummaryItems = @[
-                                    [PKPaymentSummaryItem summaryItemWithLabel:label
-                                                                        amount:amount]
-                                    ];
+    PKPaymentRequest *request = [PKPaymentRequest new];
 
-    NSString *cur = [command.arguments objectAtIndex:2];
-    request.currencyCode = cur;
+    // Different version of iOS support different networks, (ie Discover card is iOS9+; not part of my project, so ignoring).
+    request.supportedNetworks = supportedPaymentNetworks;
 
-    callbackId = command.callbackId;
+    request.merchantCapabilities = merchantCapabilities;
 
-    if ([Stripe canSubmitPaymentRequest:request]) {
-        PKPaymentAuthorizationViewController *paymentController;
-        paymentController = [[PKPaymentAuthorizationViewController alloc]
-                             initWithPaymentRequest:request];
-        paymentController.delegate = self;
-        [self.viewController presentViewController:paymentController animated:YES completion:nil];
-    } else {
-        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"You dont have access to ApplePay"];
-        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+    // All this data is loaded from the Cordova object passed in. See documentation.
+    [request setCurrencyCode:[self currencyCodeFromArguments:command.arguments]];
+    [request setCountryCode:[self countryCodeFromArguments:command.arguments]];
+    [request setMerchantIdentifier:[self merchantIdentifierFromArguments:command.arguments]];
+    [request setRequiredBillingAddressFields:[self billingAddressRequirementFromArguments:command.arguments]];
+    [request setRequiredShippingAddressFields:[self shippingAddressRequirementFromArguments:command.arguments]];
+    [request setShippingType:[self shippingTypeFromArguments:command.arguments]];
+    [request setShippingMethods:[self shippingMethodsFromArguments:command.arguments]];
+    [request setPaymentSummaryItems:[self itemsFromArguments:command.arguments]];
+
+    NSLog(@"ApplePay request == %@", request);
+
+    PKPaymentAuthorizationViewController *authVC = [[PKPaymentAuthorizationViewController alloc] initWithPaymentRequest:request];
+
+    authVC.delegate = self;
+
+    if (authVC == nil) {
+        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"PKPaymentAuthorizationViewController was nil."];
+        [self.commandDelegate sendPluginResult:result callbackId:self.paymentCallbackId];
         return;
     }
+
+    [self.viewController presentViewController:authVC animated:YES completion:nil];
+}
+
+- (void)paymentAuthorizationViewControllerDidFinish:(PKPaymentAuthorizationViewController *)controller
+{
+    [self.viewController dismissViewControllerAnimated:YES completion:nil];
+
+    CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"Payment not completed."];
+    [self.commandDelegate sendPluginResult:result callbackId:self.paymentCallbackId];
+}
+
+- (NSDictionary*) formatPaymentForApplication:(PKPayment *)payment {
+    NSString *paymentData = [payment.token.paymentData base64EncodedStringWithOptions:0];
+
+    //    NSDictionary *response = @{
+    //                               @"paymentData":paymentData,
+    //                               @"transactionIdentifier":payment.token.transactionIdentifier
+    //                               };
+
+    NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
+
+    [response setObject:paymentData  forKey:@"paymentData"];
+    [response setObject:payment.token.transactionIdentifier  forKey:@"transactionIdentifier"];
+
+    // Different version of iOS present the billing/shipping addresses in different ways. Pain.
+    if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion){9, 0, 0}]) {
+
+
+        PKContact *billingContact = payment.billingContact;
+        if (billingContact) {
+            if (billingContact.emailAddress) {
+                [response setObject:billingContact.emailAddress forKey:@"billingEmailAddress"];
+            }
+
+            if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion){9, 2, 0}]) {
+                if (billingContact.supplementarySubLocality) {
+                    [response setObject:billingContact.supplementarySubLocality forKey:@"billingSupplementarySubLocality"];
+                }
+            }
+
+            if (billingContact.name) {
+
+                if (billingContact.name.givenName) {
+                    [response setObject:billingContact.name.givenName forKey:@"billingNameFirst"];
+                }
+
+                if (billingContact.name.middleName) {
+                    [response setObject:billingContact.name.middleName forKey:@"billingNameMiddle"];
+                }
+
+                if (billingContact.name.familyName) {
+                    [response setObject:billingContact.name.familyName forKey:@"billingNameLast"];
+                }
+
+            }
+
+            if (billingContact.postalAddress) {
+
+                if (billingContact.postalAddress.street) {
+                    [response setObject:billingContact.postalAddress.street forKey:@"billingAddressStreet"];
+                }
+
+                if (billingContact.postalAddress.city) {
+                    [response setObject:billingContact.postalAddress.city forKey:@"billingAddressCity"];
+                }
+
+                if (billingContact.postalAddress.state) {
+                    [response setObject:billingContact.postalAddress.state forKey:@"billingAddressState"];
+                }
+
+
+                if (billingContact.postalAddress.postalCode) {
+                    [response setObject:billingContact.postalAddress.postalCode forKey:@"billingPostalCode"];
+                }
+
+                if (billingContact.postalAddress.country) {
+                    [response setObject:billingContact.postalAddress.country forKey:@"billingCountry"];
+                }
+
+                if (billingContact.postalAddress.ISOCountryCode) {
+                    [response setObject:billingContact.postalAddress.ISOCountryCode forKey:@"billingISOCountryCode"];
+                }
+
+            }
+        }
+
+        PKContact *shippingContact = payment.shippingContact;
+        if (shippingContact) {
+            if (shippingContact.emailAddress) {
+                [response setObject:shippingContact.emailAddress forKey:@"shippingEmailAddress"];
+            }
+
+            if (shippingContact.name) {
+
+                if (shippingContact.name.givenName) {
+                    [response setObject:shippingContact.name.givenName forKey:@"shippingNameFirst"];
+                }
+
+                if (shippingContact.name.middleName) {
+                    [response setObject:shippingContact.name.middleName forKey:@"shippingNameMiddle"];
+                }
+
+                if (shippingContact.name.familyName) {
+                    [response setObject:shippingContact.name.familyName forKey:@"shippingNameLast"];
+                }
+
+            }
+            if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion){9, 2, 0}]) {
+                if (shippingContact.supplementarySubLocality) {
+                    [response setObject:shippingContact.supplementarySubLocality forKey:@"shippingSupplementarySubLocality"];
+                }
+            }
+
+            if (shippingContact.postalAddress) {
+
+                if (shippingContact.postalAddress.street) {
+                    [response setObject:shippingContact.postalAddress.street forKey:@"shippingAddressStreet"];
+                }
+
+                if (shippingContact.postalAddress.city) {
+                    [response setObject:shippingContact.postalAddress.city forKey:@"shippingAddressCity"];
+                }
+
+                if (shippingContact.postalAddress.state) {
+                    [response setObject:shippingContact.postalAddress.state forKey:@"shippingAddressState"];
+                }
+
+                if (shippingContact.postalAddress.postalCode) {
+                    [response setObject:shippingContact.postalAddress.postalCode forKey:@"shippingPostalCode"];
+                }
+
+                if (shippingContact.postalAddress.country) {
+                    [response setObject:shippingContact.postalAddress.country forKey:@"shippingCountry"];
+                }
+
+                if (shippingContact.postalAddress.ISOCountryCode) {
+                    [response setObject:shippingContact.postalAddress.ISOCountryCode forKey:@"shippingISOCountryCode"];
+                }
+
+            }
+        }
+
+
+    } else if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion){8, 0, 0}]) {
+
+        ABRecordRef billingAddress = payment.billingAddress;
+        if (billingAddress) {
+            //[self applyABRecordShippingAddress:billingAddress forDictionary:response];
+        }
+
+        ABRecordRef shippingAddress = payment.shippingAddress;
+        if (shippingAddress) {
+            [self applyABRecordShippingAddress:shippingAddress forDictionary:response];
+        }
+
+    }
+
+
+    return response;
 }
 
 - (void)paymentAuthorizationViewController:(PKPaymentAuthorizationViewController *)controller
                        didAuthorizePayment:(PKPayment *)payment
-                                completion:(void (^)(PKPaymentAuthorizationStatus))completion {
-    [self handlePaymentAuthorizationWithPayment:payment completion:completion];
+                                completion:(void (^)(PKPaymentAuthorizationStatus status))completion
+{
+    NSLog(@"CDVApplePay: didAuthorizePayment");
+
+    if (completion) {
+        self.paymentAuthorizationBlock = completion;
+    }
+    NSDictionary* response = [self formatPaymentForApplication:payment];
+
+    CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:response];
+    [self.commandDelegate sendPluginResult:result callbackId:self.paymentCallbackId];
 }
 
-- (void)handlePaymentAuthorizationWithPayment:(PKPayment *)payment completion:(void (^)(PKPaymentAuthorizationStatus))completion {
 
-    [[STPAPIClient sharedClient] createTokenWithPayment:payment completion:^(STPToken *token, NSError *error) {
-        if (error) {
+- (PKShippingMethod *)shippingMethodWithIdentifier:(NSString *)idenfifier detail:(NSString *)detail label:(NSString *)label amount:(NSDecimalNumber *)amount
+{
+    PKShippingMethod *shippingMethod = [PKShippingMethod new];
+    shippingMethod.identifier = idenfifier;
+    shippingMethod.detail = detail;
+    shippingMethod.amount = amount;
+    shippingMethod.label = label;
 
-        NSLog(@"ERROR %@", error);
-
-            completion(PKPaymentAuthorizationStatusFailure);
-            CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"couldn't get a stripe token from STPAPIClient"];
-            [self.commandDelegate sendPluginResult:result callbackId:callbackId];
-            return;
-        } else {
-
-            NSString* brand;
-
-            switch (token.card.brand) {
-                case STPCardBrandVisa:
-                    brand = @"Visa";
-                    break;
-                case STPCardBrandAmex:
-                    brand = @"American Express";
-                    break;
-                case STPCardBrandMasterCard:
-                    brand = @"MasterCard";
-                    break;
-                case STPCardBrandDiscover:
-                    brand = @"Discover";
-                    break;
-                case STPCardBrandJCB:
-                    brand = @"JCB";
-                    break;
-                case STPCardBrandDinersClub:
-                    brand = @"Diners Club";
-                    break;
-                case STPCardBrandUnknown:
-                    brand = @"Unknown";
-                    break;
-            }
-
-            NSDictionary* card = @{
-               @"id": token.card.cardId,
-               @"brand": brand,
-               @"last4": [NSString stringWithFormat:@"%@", token.card.last4],
-               @"exp_month": [NSString stringWithFormat:@"%lu", token.card.expMonth],
-               @"exp_year": [NSString stringWithFormat:@"%lu", token.card.expYear]
-           };
-
-            NSDictionary* message = @{
-               @"id": token.tokenId,
-               @"card": card
-            };
-
-            completion(PKPaymentAuthorizationStatusSuccess);
-            CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary: message];
-            [self.commandDelegate sendPluginResult:result callbackId:callbackId];
-        }
-
-    }];
+    return shippingMethod;
 }
 
-- (void)paymentAuthorizationViewControllerDidFinish:(PKPaymentAuthorizationViewController *)controller {
-    CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: @"user cancelled apple pay"];
-    [self.commandDelegate sendPluginResult:result callbackId:callbackId];
-    [self.viewController dismissViewControllerAnimated:YES completion:nil];
-}
 
 @end
